@@ -20,7 +20,7 @@ A premium, privacy-first Flutter application that runs a large language model (L
 ## Screenshots
 | Model Download | AI Chat |
 |:--------------:|:--------------------:|
-|<img width="1080" height="2000" alt="model_download_screen" src="https://github.com/user-attachments/assets/0c0863c2-e586-413a-b044-ef074255fb61" />|<img width="1080" height="2000" alt="ai_chat_screen" src="https://github.com/user-attachments/assets/fd285cd1-b530-4a8c-b4b2-4be4f3043317" />|
+|<img width="1080" height="1500" alt="model_download_screen" src="https://github.com/user-attachments/assets/0c0863c2-e586-413a-b044-ef074255fb61" />|<img width="1080" height="1500" alt="ai_chat_screen" src="https://github.com/user-attachments/assets/fd285cd1-b530-4a8c-b4b2-4be4f3043317" />|
 
 
 
