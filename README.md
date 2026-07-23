@@ -59,6 +59,10 @@ lib/
 │   └── theme.dart           # Global dark theme and color palette
 ├── models/
 │   └── chat_message.dart    # Data model for conversation history
+├── providers/
+│   ├── chat_provider.dart   # State management for chat interactions
+│   ├── download_provider.dart # State management for model downloading
+│   └── service_providers.dart # Dependency injection for services
 ├── screens/
 │   ├── chat_screen.dart     # Main chat UI with real-time streaming
 │   └── download_screen.dart # Splash screen & model downloader UI
