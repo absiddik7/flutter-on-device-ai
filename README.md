@@ -18,13 +18,11 @@ A premium, privacy-first Flutter application that runs a large language model (L
 - **UI & Styling**: Vanilla Flutter widgets, custom gradient backgrounds, and [Google Fonts](https://pub.dev/packages/google_fonts) (Inter).
 
 ## Screenshots
-| Model Download | AI Chat |
-|:--------------:|:--------------------:|
-|<img width="1080" height="2340" alt="model_download_screen" src="https://github.com/user-attachments/assets/99c9b0ea-ae51-4617-8b85-27305a0a2195" />|<img width="1080" height="2340" alt="ai_chat_screen" src="https://github.com/user-attachments/assets/283c788c-e5c4-42a4-9c28-83f82915f81c" />|
 
-
-
-
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/99c9b0ea-ae51-4617-8b85-27305a0a2195" width="250" alt="Model Download"/>
+  <img src="https://github.com/user-attachments/assets/283c788c-e5c4-42a4-9c28-83f82915f81c" width="250" alt="AI Chat"/>
+</p>
 
 ## 🚀 Getting Started
 
