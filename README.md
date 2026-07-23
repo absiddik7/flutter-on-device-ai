@@ -17,6 +17,13 @@ A premium, privacy-first Flutter application that runs a large language model (L
 - **Networking**: [Dio](https://pub.dev/packages/dio) (for downloading the GGUF model)
 - **UI & Styling**: Vanilla Flutter widgets, custom gradient backgrounds, and [Google Fonts](https://pub.dev/packages/google_fonts) (Inter).
 
+## Screenshots
+| Model Download | AI Chat |
+|:--------------:|:--------------------:|
+| <img width="1080" height="2340" alt="model_download_screen" src="https://github.com/user-attachments/assets/0c0863c2-e586-413a-b044-ef074255fb61" /> | <img width="1080" height="2340" alt="ai_chat_screen" src="https://github.com/user-attachments/assets/fd285cd1-b530-4a8c-b4b2-4be4f3043317" /> |
+
+
+
 ## 🚀 Getting Started
 
 ### Prerequisites
