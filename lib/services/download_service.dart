@@ -26,8 +26,7 @@ class DownloadService {
 
   Future<void> downloadModel({
     required String savePath,
-    required void Function(double progress, int received, int total)
-        onProgress,
+    required void Function(double progress, int received, int total) onProgress,
   }) async {
     _cancelToken = CancelToken();
 

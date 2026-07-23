@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import 'core/constants.dart';
 import 'core/theme.dart';
 import 'screens/download_screen.dart';
@@ -8,9 +10,7 @@ import 'screens/download_screen.dart';
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
 
-  SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-  ]);
+  SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
 
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
@@ -19,7 +19,7 @@ void main() {
     ),
   );
 
-  runApp(const LocalAiApp());
+  runApp(const ProviderScope(child: LocalAiApp()));
 }
 
 class LocalAiApp extends StatelessWidget {

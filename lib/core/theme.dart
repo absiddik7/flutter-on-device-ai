@@ -64,17 +64,17 @@ class AppTheme {
         filled: true,
         fillColor: surfaceInput,
         hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4)),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 20,
+          vertical: 14,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(28),
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(28),
-          borderSide: BorderSide(
-            color: Colors.white.withValues(alpha: 0.06),
-          ),
+          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.06)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(28),
@@ -86,8 +86,9 @@ class AppTheme {
           backgroundColor: _seedColor,
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(28),
+          ),
           textStyle: GoogleFonts.inter(
             fontWeight: FontWeight.w600,
             fontSize: 15,
@@ -95,9 +96,7 @@ class AppTheme {
         ),
       ),
       iconButtonTheme: IconButtonThemeData(
-        style: IconButton.styleFrom(
-          foregroundColor: accentPurple,
-        ),
+        style: IconButton.styleFrom(foregroundColor: accentPurple),
       ),
       progressIndicatorTheme: const ProgressIndicatorThemeData(
         color: accentPurple,

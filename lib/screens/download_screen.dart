@@ -1,29 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/constants.dart';
 import '../core/theme.dart';
-import '../services/download_service.dart';
+import '../providers/download_provider.dart';
 import 'chat_screen.dart';
 
-class DownloadScreen extends StatefulWidget {
+class DownloadScreen extends ConsumerStatefulWidget {
   const DownloadScreen({super.key});
 
   @override
-  State<DownloadScreen> createState() => _DownloadScreenState();
+  ConsumerState<DownloadScreen> createState() => _DownloadScreenState();
 }
 
-class _DownloadScreenState extends State<DownloadScreen>
+class _DownloadScreenState extends ConsumerState<DownloadScreen>
     with SingleTickerProviderStateMixin {
-  final DownloadService _downloadService = DownloadService();
-
-  bool _isChecking = true;
-  bool _isDownloading = false;
-  bool _hasError = false;
-  double _progress = 0.0;
-  int _receivedBytes = 0;
-  int _totalBytes = 0;
-  String _errorMessage = '';
-
   late final AnimationController _pulseController;
 
   @override
@@ -33,91 +24,29 @@ class _DownloadScreenState extends State<DownloadScreen>
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat(reverse: true);
-    _checkModel();
   }
 
   @override
   void dispose() {
     _pulseController.dispose();
-    _downloadService.dispose();
     super.dispose();
-  }
-
-  Future<void> _checkModel() async {
-    setState(() {
-      _isChecking = true;
-      _hasError = false;
-      _errorMessage = '';
-    });
-
-    try {
-      if (await _downloadService.isModelDownloaded()) {
-        final path = await _downloadService.modelFilePath;
-        _navigateToChat(path);
-        return;
-      }
-      final path = await _downloadService.modelFilePath;
-      setState(() {
-        _isChecking = false;
-        _isDownloading = true;
-      });
-      await _startDownload(path);
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _isChecking = false;
-        _hasError = true;
-        _errorMessage = e.toString();
-      });
-    }
-  }
-
-  Future<void> _startDownload(String savePath) async {
-    try {
-      await _downloadService.downloadModel(
-        savePath: savePath,
-        onProgress: (progress, received, total) {
-          if (!mounted) return;
-          setState(() {
-            _progress = progress;
-            _receivedBytes = received;
-            _totalBytes = total;
-          });
-        },
-      );
-      _navigateToChat(savePath);
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _isDownloading = false;
-        _hasError = true;
-        _errorMessage = _friendlyError(e);
-      });
-    }
   }
 
   void _navigateToChat(String modelPath) {
     if (!mounted) return;
-    Navigator.of(context).pushReplacement(
-      PageRouteBuilder(
-        pageBuilder: (_, __, ___) => ChatScreen(modelPath: modelPath),
-        transitionsBuilder: (_, animation, __, child) {
-          return FadeTransition(opacity: animation, child: child);
-        },
-        transitionDuration: const Duration(milliseconds: 500),
-      ),
-    );
-  }
-
-  String _friendlyError(Object e) {
-    final msg = e.toString();
-    if (msg.contains('SocketException') || msg.contains('Connection')) {
-      return 'No internet connection. Please check your network and try again.';
-    }
-    if (msg.contains('cancel')) {
-      return 'Download was cancelled.';
-    }
-    return 'Download failed: $msg';
+    // Delay slightly to prevent navigate during build if triggered by provider listener
+    Future.microtask(() {
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        PageRouteBuilder(
+          pageBuilder: (_, __, ___) => ChatScreen(modelPath: modelPath),
+          transitionsBuilder: (_, animation, __, child) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+          transitionDuration: const Duration(milliseconds: 500),
+        ),
+      );
+    });
   }
 
   String _formatBytes(int bytes) {
@@ -131,6 +60,14 @@ class _DownloadScreenState extends State<DownloadScreen>
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<DownloadState>(downloadProvider, (previous, next) {
+      if (next.modelPath != null && previous?.modelPath == null) {
+        _navigateToChat(next.modelPath!);
+      }
+    });
+
+    final state = ref.watch(downloadProvider);
+
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(gradient: AppTheme.backgroundGradient),
@@ -143,9 +80,10 @@ class _DownloadScreenState extends State<DownloadScreen>
                 children: [
                   _buildLogo(),
                   const SizedBox(height: 40),
-                  if (_isChecking) _buildCheckingState(),
-                  if (_isDownloading && !_hasError) _buildDownloadingState(),
-                  if (_hasError) _buildErrorState(),
+                  if (state.isChecking) _buildCheckingState(),
+                  if (state.isDownloading && !state.hasError)
+                    _buildDownloadingState(state),
+                  if (state.hasError) _buildErrorState(state),
                 ],
               ),
             ),
@@ -190,17 +128,16 @@ class _DownloadScreenState extends State<DownloadScreen>
       children: [
         Text(
           AppConstants.downloadTitle,
-          style: Theme.of(context)
-              .textTheme
-              .headlineSmall
-              ?.copyWith(fontWeight: FontWeight.bold),
+          style: Theme.of(
+            context,
+          ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
         Text(
           'Checking for existing model…',
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Colors.white.withValues(alpha: 0.6),
-              ),
+            color: Colors.white.withValues(alpha: 0.6),
+          ),
         ),
         const SizedBox(height: 24),
         const SizedBox(
@@ -212,29 +149,28 @@ class _DownloadScreenState extends State<DownloadScreen>
     );
   }
 
-  Widget _buildDownloadingState() {
-    final percentText = '${(_progress * 100).toStringAsFixed(1)}%';
-    final sizeText = _totalBytes > 0
-        ? '${_formatBytes(_receivedBytes)} / ${_formatBytes(_totalBytes)}'
+  Widget _buildDownloadingState(DownloadState state) {
+    final percentText = '${(state.progress * 100).toStringAsFixed(1)}%';
+    final sizeText = state.totalBytes > 0
+        ? '${_formatBytes(state.receivedBytes)} / ${_formatBytes(state.totalBytes)}'
         : '';
 
     return Column(
       children: [
         Text(
           AppConstants.downloadTitle,
-          style: Theme.of(context)
-              .textTheme
-              .headlineSmall
-              ?.copyWith(fontWeight: FontWeight.bold),
+          style: Theme.of(
+            context,
+          ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
         Text(
           AppConstants.downloadSubtitle,
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Colors.white.withValues(alpha: 0.55),
-                height: 1.5,
-              ),
+            color: Colors.white.withValues(alpha: 0.55),
+            height: 1.5,
+          ),
         ),
         const SizedBox(height: 36),
         ClipRRect(
@@ -250,7 +186,7 @@ class _DownloadScreenState extends State<DownloadScreen>
                   ),
                 ),
                 FractionallySizedBox(
-                  widthFactor: _progress.clamp(0.0, 1.0),
+                  widthFactor: state.progress.clamp(0.0, 1.0),
                   child: Container(
                     decoration: BoxDecoration(
                       gradient: AppTheme.progressGradient,
@@ -269,15 +205,15 @@ class _DownloadScreenState extends State<DownloadScreen>
             Text(
               percentText,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: AppTheme.accentPurple,
-                  ),
+                fontWeight: FontWeight.w700,
+                color: AppTheme.accentPurple,
+              ),
             ),
             Text(
               sizeText,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.white.withValues(alpha: 0.45),
-                  ),
+                color: Colors.white.withValues(alpha: 0.45),
+              ),
             ),
           ],
         ),
@@ -285,7 +221,7 @@ class _DownloadScreenState extends State<DownloadScreen>
     );
   }
 
-  Widget _buildErrorState() {
+  Widget _buildErrorState(DownloadState state) {
     return Column(
       children: [
         Container(
@@ -304,26 +240,25 @@ class _DownloadScreenState extends State<DownloadScreen>
         const SizedBox(height: 20),
         Text(
           'Download Failed',
-          style: Theme.of(context)
-              .textTheme
-              .titleLarge
-              ?.copyWith(fontWeight: FontWeight.bold),
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Text(
-            _errorMessage,
+            state.errorMessage,
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Colors.white.withValues(alpha: 0.6),
-                  height: 1.5,
-                ),
+              color: Colors.white.withValues(alpha: 0.6),
+              height: 1.5,
+            ),
           ),
         ),
         const SizedBox(height: 28),
         ElevatedButton.icon(
-          onPressed: _checkModel,
+          onPressed: () => ref.read(downloadProvider.notifier).retryDownload(),
           icon: const Icon(Icons.refresh_rounded, size: 20),
           label: const Text('Retry Download'),
         ),

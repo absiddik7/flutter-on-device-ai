@@ -24,8 +24,9 @@ class LlmService {
     String modelPath, {
     void Function(double progress)? onLoadProgress,
   }) async {
-    _tokenSubscription =
-        Fllama.instance()?.onTokenStream?.listen(_handleStreamEvent);
+    _tokenSubscription = Fllama.instance()?.onTokenStream?.listen(
+      _handleStreamEvent,
+    );
 
     final result = await Fllama.instance()?.initContext(
       modelPath,
@@ -56,15 +57,15 @@ class LlmService {
     try {
       final messages = <RoleContent>[
         RoleContent(role: 'system', content: AppConstants.systemPrompt),
-        ...history.map(
-          (m) => RoleContent(role: m.role, content: m.content),
-        ),
+        ...history.map((m) => RoleContent(role: m.role, content: m.content)),
       ];
 
       String? prompt;
       try {
-        prompt =
-            await Fllama.instance()?.getFormattedChat(_contextId, messages: messages);
+        prompt = await Fllama.instance()?.getFormattedChat(
+          _contextId,
+          messages: messages,
+        );
       } catch (_) {
         prompt = _buildChatMlPrompt(messages);
       }

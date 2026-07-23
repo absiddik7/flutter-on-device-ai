@@ -1,29 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/constants.dart';
 import '../core/theme.dart';
 import '../models/chat_message.dart';
-import '../services/llm_service.dart';
+import '../providers/chat_provider.dart';
 
-class ChatScreen extends StatefulWidget {
+class ChatScreen extends ConsumerStatefulWidget {
   const ChatScreen({super.key, required this.modelPath});
 
   final String modelPath;
 
   @override
-  State<ChatScreen> createState() => _ChatScreenState();
+  ConsumerState<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
-  final LlmService _llm = LlmService();
-  final List<ChatMessage> _messages = [];
+class _ChatScreenState extends ConsumerState<ChatScreen>
+    with TickerProviderStateMixin {
   final TextEditingController _inputController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-
-  bool _modelReady = false;
-  bool _modelLoading = true;
-  bool _isGenerating = false;
-  String? _loadError;
 
   late final AnimationController _typingDotController;
 
@@ -34,7 +29,11 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     )..repeat();
-    _initModel();
+
+    // Initialize model after first frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(chatProvider.notifier).initModel(widget.modelPath);
+    });
   }
 
   @override
@@ -42,69 +41,21 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     _typingDotController.dispose();
     _inputController.dispose();
     _scrollController.dispose();
-    _llm.dispose();
     super.dispose();
-  }
-
-  Future<void> _initModel() async {
-    try {
-      await _llm.initModel(widget.modelPath);
-      if (!mounted) return;
-      setState(() {
-        _modelReady = true;
-        _modelLoading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _modelLoading = false;
-        _loadError = e.toString();
-      });
-    }
   }
 
   Future<void> _sendMessage() async {
     final text = _inputController.text.trim();
-    if (text.isEmpty || _isGenerating || !_modelReady) return;
+    final state = ref.read(chatProvider);
+    if (text.isEmpty || state.isGenerating || !state.isModelReady) return;
 
     _inputController.clear();
-    setState(() {
-      _messages.add(ChatMessage(role: 'user', content: text));
-      _messages.add(ChatMessage(role: 'assistant', content: ''));
-      _isGenerating = true;
-    });
+    await ref.read(chatProvider.notifier).sendMessage(text);
     _scrollToBottom();
-
-    final history = _messages
-        .where((m) => m.content.isNotEmpty)
-        .toList();
-
-    await _llm.sendMessage(
-      history: history,
-      onToken: (token) {
-        if (!mounted) return;
-        setState(() {
-          _messages.last.content += token;
-        });
-        _scrollToBottom();
-      },
-      onComplete: () {
-        if (!mounted) return;
-        setState(() => _isGenerating = false);
-      },
-      onError: (error) {
-        if (!mounted) return;
-        setState(() {
-          _messages.last.content += '\n\n⚠️ Error: $error';
-          _isGenerating = false;
-        });
-      },
-    );
   }
 
   void _stopGeneration() {
-    _llm.stopGeneration();
-    setState(() => _isGenerating = false);
+    ref.read(chatProvider.notifier).stopGeneration();
   }
 
   void _scrollToBottom() {
@@ -121,17 +72,25 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    final state = ref.watch(chatProvider);
+
+    // Auto scroll when generating
+    if (state.isGenerating) {
+      _scrollToBottom();
+    }
+
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(gradient: AppTheme.backgroundGradient),
         child: SafeArea(
           child: Column(
             children: [
-              _buildAppBar(),
-              if (_modelLoading) _buildLoadingBanner(),
-              if (_loadError != null) _buildErrorBanner(),
-              Expanded(child: _buildMessageList()),
-              _buildInputBar(),
+              _buildAppBar(state),
+              if (state.isModelLoading) _buildLoadingBanner(),
+              if (state.error != null && state.error!.isNotEmpty)
+                _buildErrorBanner(state),
+              Expanded(child: _buildMessageList(state)),
+              _buildInputBar(state),
             ],
           ),
         ),
@@ -139,7 +98,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildAppBar() {
+  Widget _buildAppBar(ChatState state) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
       child: Row(
@@ -151,7 +110,11 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
               gradient: AppTheme.accentGradient,
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(Icons.smart_toy_rounded, size: 20, color: Colors.white),
+            child: const Icon(
+              Icons.smart_toy_rounded,
+              size: 20,
+              color: Colors.white,
+            ),
           ),
           const SizedBox(width: 12),
           Column(
@@ -159,24 +122,23 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
             children: [
               Text(
                 AppConstants.appName,
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w700),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
               ),
               Text(
-                _modelReady ? 'Online • On-device' : 'Loading model…',
+                state.isModelReady ? 'Online • On-device' : 'Loading model…',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: _modelReady
-                          ? AppTheme.successGreen
-                          : Colors.white.withValues(alpha: 0.5),
-                      fontSize: 11,
-                    ),
+                  color: state.isModelReady
+                      ? AppTheme.successGreen
+                      : Colors.white.withValues(alpha: 0.5),
+                  fontSize: 11,
+                ),
               ),
             ],
           ),
           const Spacer(),
-          if (_modelReady)
+          if (state.isModelReady)
             Container(
               width: 8,
               height: 8,
@@ -210,7 +172,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildErrorBanner() {
+  Widget _buildErrorBanner(ChatState state) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -221,7 +183,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Model failed to load: $_loadError',
+              'Model error: ${state.error}',
               style: const TextStyle(fontSize: 12, color: AppTheme.errorRed),
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
@@ -230,11 +192,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           IconButton(
             icon: const Icon(Icons.refresh_rounded, size: 20),
             onPressed: () {
-              setState(() {
-                _loadError = null;
-                _modelLoading = true;
-              });
-              _initModel();
+              ref.read(chatProvider.notifier).initModel(widget.modelPath);
             },
           ),
         ],
@@ -242,18 +200,18 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildMessageList() {
-    if (_messages.isEmpty) {
+  Widget _buildMessageList(ChatState state) {
+    if (state.messages.isEmpty) {
       return _buildEmptyState();
     }
 
     return ListView.builder(
       controller: _scrollController,
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-      itemCount: _messages.length + (_isGenerating ? 1 : 0),
+      itemCount: state.messages.length + (state.isGenerating ? 1 : 0),
       itemBuilder: (context, index) {
-        if (index < _messages.length) {
-          return _buildMessageBubble(_messages[index]);
+        if (index < state.messages.length) {
+          return _buildMessageBubble(state.messages[index]);
         }
         return _buildTypingIndicator();
       },
@@ -274,16 +232,16 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           Text(
             'Start a conversation',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: Colors.white.withValues(alpha: 0.3),
-                  fontWeight: FontWeight.w500,
-                ),
+              color: Colors.white.withValues(alpha: 0.3),
+              fontWeight: FontWeight.w500,
+            ),
           ),
           const SizedBox(height: 6),
           Text(
             'Everything runs privately on your device.',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Colors.white.withValues(alpha: 0.2),
-                ),
+              color: Colors.white.withValues(alpha: 0.2),
+            ),
           ),
         ],
       ),
@@ -292,13 +250,17 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
 
   Widget _buildMessageBubble(ChatMessage message) {
     final isUser = message.isUser;
-    final alignment = isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start;
+    final alignment = isUser
+        ? CrossAxisAlignment.end
+        : CrossAxisAlignment.start;
     final bubbleColor = isUser ? AppTheme.userBubble : AppTheme.assistantBubble;
     final borderRadius = BorderRadius.only(
       topLeft: const Radius.circular(20),
       topRight: const Radius.circular(20),
       bottomLeft: isUser ? const Radius.circular(20) : const Radius.circular(4),
-      bottomRight: isUser ? const Radius.circular(4) : const Radius.circular(20),
+      bottomRight: isUser
+          ? const Radius.circular(4)
+          : const Radius.circular(20),
     );
 
     return Padding(
@@ -386,7 +348,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildInputBar() {
+  Widget _buildInputBar(ChatState state) {
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
       decoration: BoxDecoration(
@@ -401,38 +363,34 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
             child: TextField(
               controller: _inputController,
               style: const TextStyle(fontSize: 14.5, color: Colors.white),
-              decoration: InputDecoration(
-                hintText: AppConstants.chatHint,
-              ),
+              decoration: InputDecoration(hintText: AppConstants.chatHint),
               textInputAction: TextInputAction.send,
               onSubmitted: (_) => _sendMessage(),
-              enabled: _modelReady && !_isGenerating,
+              enabled: state.isModelReady && !state.isGenerating,
               maxLines: 4,
               minLines: 1,
             ),
           ),
           const SizedBox(width: 8),
-          _isGenerating
-              ? _buildStopButton()
-              : _buildSendButton(),
+          state.isGenerating ? _buildStopButton() : _buildSendButton(state),
         ],
       ),
     );
   }
 
-  Widget _buildSendButton() {
+  Widget _buildSendButton(ChatState state) {
     return Container(
       width: 44,
       height: 44,
       decoration: BoxDecoration(
-        gradient: _modelReady ? AppTheme.accentGradient : null,
-        color: _modelReady ? null : AppTheme.surfaceInput,
+        gradient: state.isModelReady ? AppTheme.accentGradient : null,
+        color: state.isModelReady ? null : AppTheme.surfaceInput,
         borderRadius: BorderRadius.circular(22),
       ),
       child: IconButton(
         icon: const Icon(Icons.arrow_upward_rounded, size: 22),
         color: Colors.white,
-        onPressed: _modelReady ? _sendMessage : null,
+        onPressed: state.isModelReady ? _sendMessage : null,
       ),
     );
   }

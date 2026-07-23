@@ -3,7 +3,7 @@ library;
 class AppConstants {
   AppConstants._();
 
-  // Qwen 2.5 1.5B model 
+  // Qwen 2.5 1.5B model
   static const String modelDownloadUrl =
       'https://huggingface.co/bartowski/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/'
       'Qwen2.5-1.5B-Instruct-Q4_K_M.gguf?download=true';
